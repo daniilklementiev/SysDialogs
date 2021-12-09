@@ -18,7 +18,6 @@ HWND        fNameStatic;
 HWND        fEllipsis;
 HWND        fSave;
 HWND        editor;
-FILE* file;
 
 ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
@@ -138,13 +137,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         case CMD_OPEN_FILE: {
             
             CreateThread(NULL, 0, OpenFileClick, &hWnd, 0, NULL);
+            break;
+        }
         case CMD_SAVE_FILE:
-        case ID_FILE_SAVEAS: {
             SendMessageW(fSave, WM_KILLFOCUS, 0, 0);
             SaveFileClick(&hWnd);
             break;
-        }
-        }
         case IDM_ABOUT:
             DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
             break;
@@ -193,6 +191,7 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 }
 
 /****************************************************************************************************************************************/
+HANDLE file;
 DWORD CALLBACK OpenFileClick(LPVOID params) {
     HWND hWnd = *((HWND*)params);
     SendMessageW(fEllipsis, WM_KILLFOCUS, 0, 0);
@@ -209,20 +208,20 @@ DWORD CALLBACK OpenFileClick(LPVOID params) {
     ofn.nMaxFileTitle = sizeof(fname);
     if (GetOpenFileNameW(&ofn)) {
         SendMessageW(fNameStatic, WM_SETTEXT, 0, (LPARAM)ofn.lpstrFile);
-        HANDLE hFile = CreateFileW(fname, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+        file = CreateFileW(fname, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
         
-        if (hFile == 0)
+        if (file == 0)
         {
             SendMessageW(editor, WM_SETTEXT, 0, (LPARAM)L"File open error");
         }
         else {
             DWORD fSize;
-            fSize = GetFileSize(hFile, NULL);
+            fSize = GetFileSize(file, NULL);
             if (fSize > 0)
             {
                 char* content = new char[fSize + 1];
                 DWORD read;
-                if(ReadFile(hFile, content, fSize, &read, NULL)){
+                if(ReadFile(file, content, fSize, &read, NULL)){
                     content[fSize] = '\0';
                     SendMessageA(editor, WM_SETTEXT, 0, (LPARAM)content);
                     delete[] content;
@@ -234,7 +233,7 @@ DWORD CALLBACK OpenFileClick(LPVOID params) {
             else {
                 SendMessageW(editor, WM_SETTEXT, 0, (LPARAM)"File is empty");
             }
-            CloseHandle(hFile);
+            CloseHandle(file);
         }
     }
     else {
@@ -247,7 +246,77 @@ DWORD CALLBACK OpenFileClick(LPVOID params) {
 }
 
 DWORD   CALLBACK    SaveFileClick(LPVOID params) {
-    HWND hWnd = *((HWND*)params);
-    SendMessageW(fNameStatic, WM_SETTEXT, 0, (LPARAM)L"OK");
+    HWND            hWnd                = *((HWND*)params);
+    WCHAR           fname[512];
+    fname[0] = '\0';
+    OPENFILENAMEW   ofn;
+    
+    ZeroMemory(&ofn, sizeof(ofn));
+
+
+    char filterExt[][6] = { ".txt" };
+    char cCustomFilter[256] = "\0\0";
+    int nFilterIndex = 0;
+    ofn.lStructSize = sizeof(OPENFILENAME);
+    ofn.hwndOwner = hWnd;
+    ofn.hInstance = hInst;
+    ofn.lpstrFilter = L"Текстовые документы(*.txt)\0*.txt\0Все файлы\0*.*\0\0";
+    ofn.lpstrCustomFilter = (LPWSTR)cCustomFilter;
+    ofn.nMaxCustFilter = 256;
+    ofn.nFilterIndex = nFilterIndex;
+    ofn.lpstrFile = fname;
+    ofn.nMaxFile = 255;
+    ofn.lpstrFileTitle = NULL;
+    ofn.nMaxFileTitle = 0;
+    ofn.lpstrInitialDir = NULL;
+    ofn.lpstrTitle = 0;
+    ofn.Flags = OFN_FILEMUSTEXIST;
+    ofn.nFileOffset = 0;
+    ofn.nFileExtension = 0;
+    ofn.lpstrDefExt = NULL;
+    ofn.lCustData = NULL;
+    ofn.lpfnHook = NULL;
+    ofn.lpTemplateName = NULL;
+
+    if (GetSaveFileName(&ofn))
+    {
+        DWORD fSize;
+        fSize = GetFileSize(file, NULL);
+        char* content = new char[fSize + 1];
+        DWORD read;
+        if(ReadFile(file, content, fSize, &read, NULL)) {
+            SendMessageA(editor, WM_GETTEXT, 0, (LPARAM)content);
+            if (file == 0)
+            {
+                SendMessageW(editor, WM_SETTEXT, 0, (LPARAM)L"File open error");
+            }
+            else {
+                
+                if (fSize > 0)
+                {
+                    DWORD write;
+                    
+
+                    if (WriteFile(file, content, fSize, &write, NULL)) {
+                        content[fSize] = '\0';
+                        SendMessageA(editor, WM_SETTEXT, 0, (LPARAM)L"");
+                        delete[] content;
+                    }
+                    else {
+                        SendMessageW(editor, WM_SETTEXT, 0, (LPARAM)L"File write error");
+                    }
+                }
+                else {
+                    SendMessageW(editor, WM_SETTEXT, 0, (LPARAM)"Error");
+                }
+                CloseHandle(file);
+            }
+        }
+
+
+    }
+    else {
+        SendMessageW(fNameStatic, WM_SETTEXT, 0, (LPARAM)L"Selection cancelled");
+    }
     return 0;
 }
