@@ -1,7 +1,7 @@
 // header.h : include file for standard system include files,
 // or project specific include files
 //
-
+#define _CRT_SECURE_NO_WARNINGS
 #pragma once
 
 #include "targetver.h"

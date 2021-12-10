@@ -18,6 +18,7 @@ HWND        fNameStatic;
 HWND        fEllipsis;
 HWND        fSave;
 HWND        editor;
+FILE* f;
 
 ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
@@ -246,77 +247,51 @@ DWORD CALLBACK OpenFileClick(LPVOID params) {
 }
 
 DWORD   CALLBACK    SaveFileClick(LPVOID params) {
-    HWND            hWnd                = *((HWND*)params);
-    WCHAR           fname[512];
-    fname[0] = '\0';
-    OPENFILENAMEW   ofn;
-    
-    ZeroMemory(&ofn, sizeof(ofn));
+    HWND hWnd = *((HWND*)params);
 
 
-    char filterExt[][6] = { ".txt" };
-    char cCustomFilter[256] = "\0\0";
-    int nFilterIndex = 0;
+
+    OPENFILENAMEA ofn;
+
+    char fileName[512];
+
+    ZeroMemory(&ofn, sizeof(OPENFILENAME));
     ofn.lStructSize = sizeof(OPENFILENAME);
     ofn.hwndOwner = hWnd;
     ofn.hInstance = hInst;
-    ofn.lpstrFilter = L"Текстовые документы(*.txt)\0*.txt\0Все файлы\0*.*\0\0";
-    ofn.lpstrCustomFilter = (LPWSTR)cCustomFilter;
-    ofn.nMaxCustFilter = 256;
-    ofn.nFilterIndex = nFilterIndex;
-    ofn.lpstrFile = fname;
-    ofn.nMaxFile = 255;
-    ofn.lpstrFileTitle = NULL;
-    ofn.nMaxFileTitle = 0;
-    ofn.lpstrInitialDir = NULL;
-    ofn.lpstrTitle = 0;
-    ofn.Flags = OFN_FILEMUSTEXIST;
-    ofn.nFileOffset = 0;
-    ofn.nFileExtension = 0;
-    ofn.lpstrDefExt = NULL;
-    ofn.lCustData = NULL;
-    ofn.lpfnHook = NULL;
-    ofn.lpTemplateName = NULL;
+    ofn.lpstrFile = fileName;
+    ofn.lpstrFile[0] = '\0';
+    ofn.nMaxFile = 512;
+    ofn.lpstrFilter = "*.txt";
+    ofn.nFilterIndex = 1;
 
-    if (GetSaveFileName(&ofn))
-    {
-        DWORD fSize;
-        fSize = GetFileSize(file, NULL);
-        char* content = new char[fSize + 1];
-        DWORD read;
-        if(ReadFile(file, content, fSize, &read, NULL)) {
-            SendMessageA(editor, WM_GETTEXT, 0, (LPARAM)content);
-            if (file == 0)
-            {
-                SendMessageW(editor, WM_SETTEXT, 0, (LPARAM)L"File open error");
+    if (!GetSaveFileNameA(&ofn)) {
+
+        MessageBoxA(NULL, "Invalid file name", "Invalid file name", MB_ICONERROR);
+    }
+    else {
+
+        FILE* f;
+        if (f = fopen(ofn.lpstrFile, "w")) {
+            int resp = MessageBoxA(hWnd, "file already exists do you want to replace it", "file already exists", MB_YESNO | MB_ICONWARNING);
+            if (resp == IDYES) {
+
+                int editLength = GetWindowTextLength(editor);
+                char* edit = new char[editLength + 1];
+
+                GetWindowTextA(editor, edit, editLength + 1);
+
+                fwrite(edit, editLength + 1, sizeof(char), f);
+                fclose(f);
+                SendMessageA(editor, WM_SETTEXT, 0, (LPARAM)"saved");
             }
-            else {
-                
-                if (fSize > 0)
-                {
-                    DWORD write;
-                    
-
-                    if (WriteFile(file, content, fSize, &write, NULL)) {
-                        content[fSize] = '\0';
-                        SendMessageA(editor, WM_SETTEXT, 0, (LPARAM)L"");
-                        delete[] content;
-                    }
-                    else {
-                        SendMessageW(editor, WM_SETTEXT, 0, (LPARAM)L"File write error");
-                    }
-                }
-                else {
-                    SendMessageW(editor, WM_SETTEXT, 0, (LPARAM)"Error");
-                }
-                CloseHandle(file);
+            else if (resp == IDNO) {
+                MessageBoxA(hWnd, "file was not saved", "file was not saved", MB_OK);
             }
         }
 
+    }
 
-    }
-    else {
-        SendMessageW(fNameStatic, WM_SETTEXT, 0, (LPARAM)L"Selection cancelled");
-    }
+    return 0;
     return 0;
 }
