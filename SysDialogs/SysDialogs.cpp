@@ -130,7 +130,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         // Parse notifications:
         switch (notifId) {
 
-
+        
         }
         int wmId = LOWORD(wParam);
         // Parse the menu selections
@@ -140,6 +140,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             CreateThread(NULL, 0, OpenFileClick, &hWnd, 0, NULL);
             break;
         }
+        case ID_FILE_SAVEAS:
         case CMD_SAVE_FILE:
             SendMessageW(fSave, WM_KILLFOCUS, 0, 0);
             SaveFileClick(&hWnd);
@@ -192,6 +193,7 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 }
 
 /****************************************************************************************************************************************/
+
 HANDLE file;
 DWORD CALLBACK OpenFileClick(LPVOID params) {
     HWND hWnd = *((HWND*)params);
@@ -248,24 +250,53 @@ DWORD CALLBACK OpenFileClick(LPVOID params) {
 
 DWORD   CALLBACK    SaveFileClick(LPVOID params) {
     HWND hWnd = *((HWND*)params);
-
-
-
-    OPENFILENAMEA ofn;
-
-    char fileName[512];
-
-    ZeroMemory(&ofn, sizeof(OPENFILENAME));
-    ofn.lStructSize = sizeof(OPENFILENAME);
+    SendMessageW(fEllipsis, WM_KILLFOCUS, 0, 0);
+    WCHAR fname[512];
+    char content[1024] = {'\0'};
+    SendMessageA(editor, WM_GETTEXT, 1024, (LPARAM)content);
+    fname[0] = '\0';
+    OPENFILENAMEW ofn;
+    ZeroMemory(&ofn, sizeof(ofn));
+    ofn.lStructSize = sizeof(ofn);
     ofn.hwndOwner = hWnd;
     ofn.hInstance = hInst;
-    ofn.lpstrFile = fileName;
-    ofn.lpstrFile[0] = '\0';
+    ofn.lpstrFile = fname;
     ofn.nMaxFile = 512;
-    ofn.lpstrFilter = "*.txt";
-    ofn.nFilterIndex = 1;
+    ofn.nMaxFileTitle = sizeof(fname);
+    if (GetOpenFileNameW(&ofn)) {
+        SendMessageW(fNameStatic, WM_SETTEXT, 0, (LPARAM)ofn.lpstrFile);
+        file = CreateFileW(fname, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+        if (file == 0)
+        {
+            SendMessageW(editor, WM_SETTEXT, 0, (LPARAM)L"File open error");
+            return -1;
+        }
+        else
+        {
+            DWORD written;
+            if (WriteFile(file, content, strnlen_s(content, 1024), &written, NULL)) {
+                if (written != strnlen_s(content,1024))
+                {
+                    SendMessageW(editor, WM_SETTEXT, 0, (LPARAM)L"Error saving");
+                    WCHAR buff[512];
+                    _snwprintf_s(buff, 512, L"written: %d", written);
+                    SendMessageW(editor, WM_SETTEXT, 0, (LPARAM)buff);
+                    
+                }
+                else {
+                    WCHAR buff[512];
+                    _snwprintf_s(buff, 512, L"written: %d", written);
+                    SendMessageW(editor, WM_SETTEXT, 0, (LPARAM)buff);
 
-    if (!GetSaveFileNameA(&ofn)) {
+                }
+            }
+            else {
+                SendMessageW(editor, WM_SETTEXT, 0, (LPARAM)L"Error saving");
+            }
+            CloseHandle(file);
+        }
+    }
+   /* if (!GetSaveFileNameA(&ofn)) {
 
         MessageBoxA(NULL, "Invalid file name", "Invalid file name", MB_ICONERROR);
     }
@@ -273,7 +304,7 @@ DWORD   CALLBACK    SaveFileClick(LPVOID params) {
 
         FILE* f;
         if (f = fopen(ofn.lpstrFile, "w")) {
-            int resp = MessageBoxA(hWnd, "file already exists do you want to replace it", "file already exists", MB_YESNO | MB_ICONWARNING);
+            int resp = MessageBoxA(hWnd, "File already exists do you want to replace it", "File already exists", MB_YESNO | MB_ICONWARNING);
             if (resp == IDYES) {
 
                 int editLength = GetWindowTextLength(editor);
@@ -283,15 +314,15 @@ DWORD   CALLBACK    SaveFileClick(LPVOID params) {
 
                 fwrite(edit, editLength + 1, sizeof(char), f);
                 fclose(f);
-                SendMessageA(editor, WM_SETTEXT, 0, (LPARAM)"saved");
+                SendMessageA(editor, WM_SETTEXT, 0, (LPARAM)"File saved");
             }
             else if (resp == IDNO) {
-                MessageBoxA(hWnd, "file was not saved", "file was not saved", MB_OK);
+                MessageBoxA(hWnd, "File wasn't saved", "File wasn't saved", MB_OK);
             }
         }
 
-    }
+    }*/
 
-    return 0;
+     
     return 0;
 }
